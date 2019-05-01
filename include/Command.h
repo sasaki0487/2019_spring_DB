@@ -1,7 +1,7 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
-enum { 
+enum {
     UNRECOG_CMD,
     BUILT_IN_CMD,
     QUERY_CMD,
@@ -10,6 +10,8 @@ enum {
 enum {
     INSERT_CMD = 100,
     SELECT_CMD,
+    DELETE_CMD,
+    UPDATE_CMD,
 };
 
 typedef struct {
@@ -24,7 +26,9 @@ typedef struct SelectArgs {
     char **fields;
     size_t fields_len;
     int offset;
+    int offset_pos;
     int limit;
+    int limit_pos;
 } SelectArgs_t;
 
 typedef union {
@@ -37,11 +41,14 @@ typedef struct Command {
     size_t args_len;
     size_t args_cap;
     CmdArg_t cmd_args;
+    int where_flag;
+    int aggr;
 } Command_t;
 
 Command_t* new_Command();
 int add_Arg(Command_t *cmd, const char *arg);
 int add_select_field(Command_t *cmd, const char *argument);
 void cleanup_Command(Command_t *cmd);
+int get_field(const char *field);
 
 #endif

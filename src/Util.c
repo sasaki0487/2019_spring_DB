@@ -9,6 +9,7 @@
 #include "Command.h"
 #include "Table.h"
 #include "SelectState.h"
+#include "Where.h"
 
 ///
 /// Allocate State_t and initialize some attributes
@@ -48,7 +49,7 @@ void print_user(User_t *user, SelectArgs_t *sel_args) {
             } else if (!strncmp(sel_args->fields[idx], "email", 5)) {
                 printf("%s", user->email);
             } else if (!strncmp(sel_args->fields[idx], "age", 3)) {
-                printf("%s", user->age);
+                printf("%d", user->age);
             }
         }
     }
@@ -62,6 +63,10 @@ void print_users(Table_t *table, int *idxList, size_t idxListLen, Command_t *cmd
     size_t idx;
     int limit = cmd->cmd_args.sel_args.limit;
     int offset = cmd->cmd_args.sel_args.offset;
+    Where_t *wh;
+    if(cmd->where_flag != 0){
+        wh = parse_Where(cmd);
+    }
 
     if (offset == -1) {
         offset = 0;
@@ -72,16 +77,74 @@ void print_users(Table_t *table, int *idxList, size_t idxListLen, Command_t *cmd
             if (limit != -1 && (idx - offset) >= limit) {
                 break;
             }
-            print_user(get_User(table, idxList[idx]), &(cmd->cmd_args.sel_args));
+            if(cmd->where_flag == 0 || check_where(table,wh,idx))
+                print_user(get_User(table, idxList[idx]), &(cmd->cmd_args.sel_args));
         }
     } else {
         for (idx = offset; idx < table->len; idx++) {
             if (limit != -1 && (idx - offset) >= limit) {
                 break;
             }
-            print_user(get_User(table, idx), &(cmd->cmd_args.sel_args));
+            if(cmd->where_flag == 0 || check_where(table,wh,idx))
+                print_user(get_User(table, idx), &(cmd->cmd_args.sel_args));
         }
     }
+}
+
+
+void print_aggr(Table_t *table, int aggr, Command_t *cmd){
+    char *str;
+    int field;
+    long unsigned int sum = 0,cnt = 0;
+    User_t *user;
+    Where_t *wh;
+    if(cmd->where_flag != 0){
+        wh = parse_Where(cmd);
+    }
+    if(aggr == 1){
+        str = strstr(cmd->args[1],"(");
+        field = get_field(str+1);
+        if(field != 1 && field != 4) return;
+        for(size_t i = 0 ; i < table->len ; i++){
+            if(cmd->where_flag == 0 || check_where(table,wh,i)){
+                cnt++;
+                user = get_User(table,i);
+                if(field == 1)
+                    sum += user->id;
+                else
+                    sum += user->age;
+            }
+
+        }
+        printf("(%0.3Lf)\n",(long double)sum/cnt);
+    }
+    else if(aggr == 2){
+        for(size_t i = 0 ; i < table->len ; i++){
+            if(cmd->where_flag == 0 || check_where(table,wh,i)){
+                cnt++;
+            }
+        }
+        printf("(%lu)\n",cnt);
+    }
+    else if(aggr == 3){
+        str = strstr(cmd->args[1],"(");
+        field = get_field(str+1);
+        if(field != 1 && field != 4) return;
+        for(size_t i = 0 ; i < table->len ; i++){
+            if(cmd->where_flag == 0 || check_where(table,wh,i)){
+                user = get_User(table,i);
+                if(field == 1)
+                    sum += user->id;
+                else
+                    sum += user->age;
+            }
+
+        }
+        printf("(%lu)\n",sum);
+    }
+    else
+        return;
+    return;
 }
 
 ///
@@ -91,6 +154,7 @@ void print_users(Table_t *table, int *idxList, size_t idxListLen, Command_t *cmd
 int parse_input(char *input, Command_t *cmd) {
     char *token;
     int idx;
+    cmd->where_flag = 0;
     token = strtok(input, " ,\n");
     for (idx = 0; strlen(cmd_list[idx].name) != 0; idx++) {
         if (!strncmp(token, cmd_list[idx].name, cmd_list[idx].len)) {
@@ -147,6 +211,12 @@ int handle_query_cmd(Table_t *table, Command_t *cmd) {
     } else if (!strncmp(cmd->args[0], "select", 6)) {
         handle_select_cmd(table, cmd);
         return SELECT_CMD;
+    } else if (!strncmp(cmd->args[0], "delete", 6)) {
+        handle_delete_cmd(table, cmd);
+        return DELETE_CMD;
+    } else if (!strncmp(cmd->args[0], "update", 6)) {
+        handle_update_cmd(table, cmd);
+        return SELECT_CMD;
     } else {
         return UNRECOG_CMD;
     }
@@ -177,11 +247,65 @@ int handle_insert_cmd(Table_t *table, Command_t *cmd) {
 int handle_select_cmd(Table_t *table, Command_t *cmd) {
     cmd->type = SELECT_CMD;
     field_state_handler(cmd, 1);
-
-    print_users(table, NULL, 0, cmd);
+    if(cmd->aggr!=-1)
+        print_aggr(table, cmd->aggr, cmd);
+    else
+        print_users(table, NULL, 0, cmd);
     return table->len;
 }
 
+int handle_delete_cmd(Table_t *table, Command_t *cmd) {
+    if(cmd->args_len == 3){
+        while(table->len != 0){
+            del_User(table,0);
+        }
+    }
+    else{
+        cmd->where_flag = 3;
+        Where_t *wh = parse_Where(cmd);
+        for(size_t i = 0 ; i < table->len ; i++){
+            if(check_where(table,wh,i)){
+                del_User(table,i);
+                i--;
+            }
+        }
+    }
+    return 0;
+}
+
+int handle_update_cmd(Table_t *table, Command_t *cmd) {
+    int field;
+    char* str;
+    Where_t *wh;
+    for(int i = 3 ; i < cmd->args_len ; i++){
+        if(!strncmp(cmd->args[i],"where",5)){
+            cmd->where_flag = i;
+            break;
+        }
+    }
+    if(cmd->args_len > 4 && (cmd->where_flag == 0 || cmd->where_flag == 6)){
+        field = get_field(cmd->args[3]);
+        str = cmd->args[5];
+    }
+    else{
+        field = get_field(cmd->args[3]);
+        str = strstr(cmd->args[3],"=") + 1;
+    }
+
+    if(cmd->where_flag != 0){
+        wh = parse_Where(cmd);
+        for(int i = 0 ; i < table->len ; i++){
+            if(check_where(table,wh,i))
+                update_User(table,i,field,str);
+        }
+    }
+    else{
+        for(int i = 0 ; i < table->len ; i++){
+            update_User(table,i,field,str);
+        }
+    }
+    return 0;
+}
 ///
 /// Show the help messages
 ///
@@ -226,4 +350,3 @@ void print_help_msg() {
     "\n";
     printf("%s", msg);
 }
-

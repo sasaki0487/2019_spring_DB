@@ -9,6 +9,8 @@ CMD_t cmd_list[] = {
     { ".help", 5, BUILT_IN_CMD },
     { "insert", 6, QUERY_CMD },
     { "select", 6, QUERY_CMD },
+    { "delete", 6, QUERY_CMD },
+    { "update", 6, QUERY_CMD },
     { "", 0, UNRECOG_CMD },
 };
 
@@ -20,6 +22,8 @@ Command_t* new_Command() {
     cmd->args = NULL;
     cmd->args_len = 0;
     cmd->args_cap = 0;
+    cmd->where_flag = 0;
+    cmd->aggr = -1;
     return cmd;
 }
 
@@ -102,3 +106,17 @@ void cleanup_Command(Command_t *cmd) {
     cmd->args_len = 0;
 }
 
+int get_field(const char *field){
+    if (!strncmp(field, "id", 2)) {
+        return 1;
+    } else if (!strncmp(field, "name", 4)) {
+        return 2;
+    } else if (!strncmp(field, "email", 5)) {
+        return 3;
+    } else if (!strncmp(field, "age", 3)) {
+        return 4;
+    }
+    else{
+        return 0;
+    }
+}

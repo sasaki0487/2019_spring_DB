@@ -1,0 +1,8 @@
+1. where.c check_where
+2. update
+where: how to parse the cmd and turn it into logic operand??? 
+
+創一個邏輯式的structure
+
+parse where後半部兩個判斷式的地方還沒做
+還有check where也還沒做

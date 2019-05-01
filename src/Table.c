@@ -161,3 +161,28 @@ error:
     return NULL;
 }
 
+int del_User(Table_t *table, size_t idx){
+    for(int i = idx ; i < (table->len)-1 ; i++){
+        memcpy((table->users)+i,(table->users)+i+1,sizeof(User_t));
+    }
+    table->len -= 1;
+    return 1;
+}
+
+int update_User(Table_t *table, size_t idx,int field,char* str){
+    User_t *user = get_User(table,idx);
+    User_t *usr_ptr;
+    if(field == 1) {
+        for (int i = 0; i < table->len ; i++) {
+            usr_ptr = get_User(table, i);
+            if (usr_ptr->id == atoi(str)) {
+                return 0;
+            }
+        }
+        user->id = atoi(str);
+    }
+    else if(field == 2) strcpy(user->name , str);
+    else if(field == 3) strcpy(user->email , str);
+    else if(field == 4) user->age = atoi(str);
+    return 1;
+}

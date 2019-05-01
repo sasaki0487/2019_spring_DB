@@ -33,4 +33,3 @@ User_t* command_to_User(Command_t *cmd) {
     user->age = atoi(cmd->args[4]);
     return user;
 }
-
